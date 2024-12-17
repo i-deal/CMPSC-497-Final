@@ -466,7 +466,7 @@ class Dataset(data.Dataset):
             transform_list += [self.totensor]
 
         # labels
-        out_label = (target, col, translation, scale)
+        out_label = (target, col)
         transform = torch_transforms.Compose(transform_list)
         return transform(image), out_label
 

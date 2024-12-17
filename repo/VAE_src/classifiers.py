@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 
 # defining the classifiers
 clf_ss = svm.SVC(C=10, gamma='scale', kernel='rbf', probability= True)  # define the classifier for shape
-clf_sc = svm.SVC(C=10, gamma='scale', kernel='rbf')  # classify shape map against color labels
-clf_cc = svm.SVC(C=10, gamma='scale', kernel='rbf')  # define the classifier for color
+clf_sc = svm.SVC(C=2, gamma='scale', kernel='rbf')  # classify shape map against color labels
+clf_cc = svm.SVC(C=2, gamma='scale', kernel='rbf')  # define the classifier for color
 clf_cs = svm.SVC(C=10, gamma='scale', kernel='rbf')  # classify color map against shape labels
 
 vals = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
@@ -28,7 +28,7 @@ def classifier_shape_train(vae, whichdecode_use, train_dataset):
         utils.save_image(data[0:10],'train_sample.png')
 
         data = data.to(device)
-        recon_batch, mu_color, log_var_color, mu_shape, log_var_shape, mu_location, log_var_location,sc,j = vae(data, whichdecode_use)
+        recon_batch, mu_color, log_var_color, mu_shape, log_var_shape = vae(data, whichdecode_use)
         z_shape = vae.sampling(mu_shape, log_var_shape).to(device)
         print('training shape bottleneck against color labels sc')
         clf_sc.fit(z_shape.cpu().numpy(), train_colorlabels.cpu())
@@ -46,7 +46,7 @@ def classifier_shape_test(vae, whichdecode_use, clf_ss, clf_sc, test_dataset, co
         test_shapelabels=labels[0].clone()
         test_colorlabels=labels[1].clone()
         data = data.cuda()
-        recon_batch, mu_color, log_var_color, mu_shape, log_var_shape, mu_location, log_var_location,sc,j = vae(data, whichdecode_use)
+        recon_batch, mu_color, log_var_color, mu_shape, log_var_shape = vae(data, whichdecode_use)
         z_shape = vae.sampling(mu_shape, log_var_shape).to(device)
         pred_ss = clf_ss.predict(z_shape.cpu())
         pred_sc = clf_sc.predict(z_shape.cpu())
@@ -81,7 +81,7 @@ def classifier_color_train(vae, whichdecode_use, train_dataset):
         train_colorlabels=labels[1].clone()
         data = data.cuda()
 
-        recon_batch, mu_color, log_var_color, mu_shape, log_var_shape, mu_location, log_var_location,sc,j = vae(data, whichdecode_use)
+        recon_batch, mu_color, log_var_color, mu_shape, log_var_shape = vae(data, whichdecode_use)
         z_color = vae.sampling(mu_color, log_var_color).to(device)
         print('training color bottleneck against color labels cc')
         clf_cc.fit(z_color.cpu().numpy(), train_colorlabels)
@@ -99,7 +99,7 @@ def classifier_color_test(vae, whichdecode_use, clf_cc, clf_cs, test_dataset, ve
         test_shapelabels=labels[0].clone()
         test_colorlabels=labels[1].clone()
         data = data.cuda()
-        recon_batch, mu_color, log_var_color, mu_shape, log_var_shape, mu_location, log_var_location,sc,j = vae(data, whichdecode_use)
+        recon_batch, mu_color, log_var_color, mu_shape, log_var_shape = vae(data, whichdecode_use)
 
         z_color = vae.sampling(mu_color, log_var_color).to(device)
         pred_cc = torch.tensor(clf_cc.predict(z_color.cpu()))
@@ -118,67 +118,3 @@ def classifier_color_test(vae, whichdecode_use, clf_cc, clf_cs, test_dataset, ve
             print(classification_report(test_shapelabels, pred_cs))
 
     return pred_cc, pred_cs, CCreport, CSreport
-
-
-
-#testing on shape for multiple images stored in memory NOT WORKING
-
-def classifier_shapemap_test_imgs(shape, shapelabels, colorlabels,numImg, clf_shapeS, clf_shapeC, test_dataset, verbose = 0):
-
-    global numcolors
-
-    numImg = int(numImg)
-
-    with torch.no_grad():
-        predicted_labels=torch.zeros(1,numImg)
-        shape = torch.squeeze(shape, dim=1)
-        shape = shape.cuda()
-        test_colorlabels = thecolorlabels(test_dataset)
-        pred_ssimg = torch.tensor(clf_shapeS.predict(shape.cpu()))
-
-        pred_scimg = torch.tensor(clf_shapeC.predict(shape.cpu()))
-
-        SSreport = torch.eq(shapelabels.cpu(), pred_ssimg).sum().float() / len(pred_ssimg)
-        SCreport = torch.eq(colorlabels[0:numImg].cpu(), pred_scimg).sum().float() / len(pred_scimg)
-
-        if verbose==1:
-            print('----*************---------shape classification from shape map')
-            print(confusion_matrix(shapelabels[0:numImg], pred_ssimg))
-            print(classification_report(shapelabels[0:numImg], pred_ssimg))
-            print('----************----------color classification from shape map')
-            print(confusion_matrix(colorlabels[0:numImg], pred_scimg))
-            print(classification_report(test_colorlabels[0:numImg], pred_scimg))
-    return pred_ssimg, pred_scimg, SSreport, SCreport
-
-
-#testing on color for multiple images stored in memory NOT WORKING
-def classifier_colormap_test_imgs(color, shapelabels, colorlabels,numImg, clf_colorC, clf_colorS, test_dataset, verbose = 0):
-
-
-    numImg = int(numImg)
-
-
-    with torch.no_grad():
-
-        color = torch.squeeze(color, dim=1)
-        color = color.cuda()
-        test_colorlabels = thecolorlabels(test_dataset)
-
-
-        pred_ccimg = torch.tensor(clf_colorC.predict(color.cpu()))
-        pred_csimg = torch.tensor(clf_colorS.predict(color.cpu()))
-
-
-        CCreport = torch.eq(colorlabels[0:numImg].cpu(), pred_ccimg).sum().float() / len(pred_ccimg)
-        CSreport = torch.eq(shapelabels.cpu(), pred_csimg).sum().float() / len(pred_csimg)
-
-
-        if verbose == 1:
-            print('----*************---------color classification from color map')
-            print(confusion_matrix(test_colorlabels[0:numImg], pred_ccimg))
-            print(classification_report(colorlabels[0:numImg], pred_ccimg))
-            print('----************----------shape classification from color map')
-            print(confusion_matrix(shapelabels[0:numImg], pred_csimg))
-            print(classification_report(shapelabels[0:numImg], pred_csimg))
-
-        return pred_ccimg, pred_csimg, CCreport, CSreport

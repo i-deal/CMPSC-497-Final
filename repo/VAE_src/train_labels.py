@@ -1,4 +1,4 @@
-from MLR_src.label_network import *
+from VAE_src.label_network import *
 import torch
 import os
 
